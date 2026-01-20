@@ -1,0 +1,114 @@
+.pqc-view {
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.6s var(--ease-out);
+}
+
+.pqc-view.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.pqc-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pqc-icon {
+    font-size: 2rem;
+    filter: drop-shadow(0 0 10px var(--primary-glow));
+}
+
+.pqc-meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.pqc-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.code-box {
+    background: rgba(255, 255, 255, 0.1);
+    /* Light frosted bg */
+    padding: 0.5rem 0.8rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    /* Modern monospace */
+    font-size: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #60a5fa;
+    /* Light blue text */
+    font-weight: 600;
+}
+
+.ciphertext-display {
+    background: rgba(0, 0, 0, 0.4);
+    color: #a5f3fc;
+    /* Cyan text */
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    padding: 1rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-height: 120px;
+    overflow-y: auto;
+    word-break: break-all;
+    white-space: pre-wrap;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Typing cursor effect */
+.ciphertext-display::after {
+    content: '|';
+    animation: blink 1s infinite;
+    color: #a5f3fc;
+}
+
+.pqc-status {
+    margin-top: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--success);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--success);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--success);
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

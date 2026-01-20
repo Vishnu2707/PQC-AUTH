@@ -1,166 +1,77 @@
-import React, { useState, useRef } from "react";
-import {
-  useMsal,
-  AuthenticatedTemplate,
-  UnauthenticatedTemplate,
-} from "@azure/msal-react";
+import React, { useState } from "react";
+import { useMsal, AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
 import { loginRequest } from "./authConfig";
+
+// Components
+import { Header } from "./components/Header/Header";
+import { Login } from "./components/Login/Login";
+import { Layout } from "./components/Layout/Layout";
+import { PQCView } from "./components/PQC/PQCView";
+import { VideoRecorder } from "./components/Video/VideoRecorder";
 
 function App() {
   const { instance, accounts } = useMsal();
-
-  const [entraToken, setEntraToken] = useState<string | null>(null);
+  const [entraToken, setEntraToken] = useState<string | null>(null); // Kept for logic, but maybe not shown in UI directly
   const [challenge, setChallenge] = useState<any>(null);
+  const [sessionData, setSessionData] = useState<any>(null);
   const [status, setStatus] = useState<string>("");
+  const [isUploading, setIsUploading] = useState(false);
 
-  // 🎥 Video recording refs + state
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<BlobPart[]>([]);
-  const [recording, setRecording] = useState(false);
-
-  // ----------- AUTH -----------
-
+  // --- AUTH ACTIONS ---
   const handleLogin = async () => {
     try {
       await instance.loginPopup(loginRequest);
     } catch (e) {
       console.error(e);
-      setStatus("❌ Login failed");
     }
   };
 
   const handleLogout = () => {
     instance.logoutPopup();
+    setChallenge(null);
+    setSessionData(null);
   };
 
-  // ----------- PQC START (PHASE 1) -----------
+  // --- PQC FLOW ---
+  const startPqcHandshake = async () => {
+    setStatus("Initiating PQC Handshake...");
+    setSessionData(null);
 
-  const getTokenAndStartPqc = async () => {
-    setStatus("🔐 Requesting Entra token...");
     try {
       const account = accounts[0];
-      if (!account) {
-        setStatus("❌ No account. Please sign in first.");
-        return;
-      }
-
-      const response = await instance.acquireTokenSilent({
-        ...loginRequest,
-        account,
-      });
-
+      const response = await instance.acquireTokenSilent({ ...loginRequest, account });
       const token = response.accessToken;
       setEntraToken(token);
-      setStatus("⚙️ Calling PQC gateway /pqc/start...");
 
       const res = await fetch("http://localhost:4000/pqc/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${token}`
         },
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        setStatus(`❌ Gateway error: ${res.status} - ${text}`);
-        return;
-      }
+      if (!res.ok) throw new Error("Gateway handshake failed");
 
       const data = await res.json();
-      console.log("PQC START RESPONSE:", data);
-
-      // ✅ Store challenge for Phase 2
+      console.log("PQC CHLLANGE:", data);
       setChallenge(data);
-      setStatus(`✅ PQC challenge issued for ${data.user}. Now record video.`);
+      setStatus("PQC Challenge Received. Waiting for Biometric Verification.");
     } catch (e: any) {
       console.error(e);
-      setStatus(`❌ Error: ${e.message || e.toString()}`);
+      setStatus(`Error: ${e.message}`);
     }
   };
 
-  // ----------- CAMERA -----------
+  const handleVideoUpload = async (videoBlob: Blob) => {
+    if (!challenge) return;
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setStatus("📷 Camera started");
-    } catch (e) {
-      console.error(e);
-      setStatus("❌ Camera access denied");
-    }
-  };
-
-  // ----------- RECORDING -----------
-
-  const startRecording = () => {
-    if (!challenge) {
-      setStatus("❌ No PQC challenge. Call gateway first.");
-      return;
-    }
-
-    const stream = videoRef.current?.srcObject as MediaStream | null;
-    if (!stream) {
-      setStatus("❌ Camera not ready. Click Start Camera first.");
-      return;
-    }
-
-    recordedChunksRef.current = [];
-
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: "video/webm;codecs=vp8"
-    });
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) {
-        recordedChunksRef.current.push(event.data);
-        console.log("✅ Chunk received:", event.data.size);
-      }
-    };
-
-    mediaRecorder.onstop = () => {
-      console.log("✅ Recording fully stopped. Total chunks:", recordedChunksRef.current.length);
-    };
-
-    mediaRecorder.start(1000); // ✅ FORCE chunk every 1 second
-    mediaRecorderRef.current = mediaRecorder;
-
-    setRecording(true);
-    setStatus("🔴 Recording started...");
-  };
-
-  const stopRecording = async () => {
-    if (!recording || !mediaRecorderRef.current) {
-      setStatus("❌ Not recording");
-      return;
-    }
-
-    mediaRecorderRef.current.stop();
-    setRecording(false);
-
-    // ✅ WAIT for final buffer flush (critical)
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    if (recordedChunksRef.current.length === 0) {
-      setStatus("❌ No video data captured. Try recording again.");
-      return;
-    }
-
-    const blob = new Blob(recordedChunksRef.current, {
-      type: "video/webm",
-    });
-
-    console.log("✅ Final video size:", blob.size);
+    setIsUploading(true);
+    setStatus("Encapsulating Session & Verifying Liveness...");
 
     const formData = new FormData();
     formData.append("challengeId", challenge.challengeId);
-    formData.append("video", blob);
-
-    setStatus("📤 Uploading video to PQC Gateway...");
+    formData.append("video", videoBlob);
 
     try {
       const res = await fetch("http://localhost:4000/pqc/verify", {
@@ -168,105 +79,92 @@ function App() {
         body: formData,
       });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        setStatus(`❌ Verify failed: ${res.status} - ${errText}`);
-        return;
-      }
+      if (!res.ok) throw new Error(await res.text());
 
       const data = await res.json();
-      console.log("✅ VERIFY RESPONSE:", data);
-
-      setStatus(`✅ PQC Session Issued: ${data.sessionToken}`);
-    } catch (e) {
+      console.log("SESSION ISSUED:", data);
+      setSessionData(data);
+      setStatus("Identity Verified. Quantum-Safe Session Established.");
+    } catch (e: any) {
       console.error(e);
-      setStatus("❌ Video upload failed");
+      setStatus(`Verification Failed: ${e.message}`);
+    } finally {
+      setIsUploading(false);
     }
   };
 
-
-  // ----------- UI -----------
-
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui", color: "#fff", backgroundColor: "#111", minHeight: "100vh" }}>
-      <h1>PQC Auth Demo</h1>
-
+    <>
       <UnauthenticatedTemplate>
-        <p>You are not signed in.</p>
-        <button onClick={handleLogin}>Sign in with Entra ID</button>
+        <Login onLogin={handleLogin} />
       </UnauthenticatedTemplate>
 
       <AuthenticatedTemplate>
-        <p>✅ Signed in as: {accounts[0]?.username}</p>
-        <button onClick={handleLogout}>Logout</button>
+        <Header user={accounts[0]} onLogout={handleLogout} />
 
-        <hr />
-
-        <button onClick={getTokenAndStartPqc}>
-          1️⃣ Call PQC Gateway with Entra token
-        </button>
-
-        {entraToken && (
-          <details style={{ marginTop: "1rem" }}>
-            <summary>Show Entra access token (debug)</summary>
-            <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.75rem" }}>
-              {entraToken}
-            </pre>
-          </details>
-        )}
-
-        {challenge && (
-          <div style={{ marginTop: "1rem" }}>
-            <h3>🔐 PQC Challenge</h3>
-            <pre style={{ fontSize: "0.8rem" }}>
-              {JSON.stringify(challenge, null, 2)}
-            </pre>
-
-            {/* 🎥 VIDEO UI */}
-            <div style={{ marginTop: "2rem" }}>
-              <h3>🎥 Video Challenge (Phase 2)</h3>
-
-              <video
-                ref={videoRef}
-                autoPlay
-                style={{ width: "300px", border: "1px solid #999" }}
-              />
-
-              <div style={{ marginTop: "1rem" }}>
-                <button onClick={startCamera}>Start Camera</button>
-
-                {!recording && (
-                  <button
-                    onClick={startRecording}
-                    style={{ marginLeft: "1rem" }}
-                  >
-                    Start Recording
-                  </button>
-                )}
-
-                {recording && (
-                  <button
-                    onClick={stopRecording}
-                    style={{ marginLeft: "1rem" }}
-                  >
-                    Stop + Upload
-                  </button>
-                )}
+        <Layout>
+          {/* STATE 1: Initial Dashboard */}
+          {!challenge && !sessionData && (
+            <div className="dashboard-hero fade-in">
+              <h1>Welcome, {accounts[0]?.name}</h1>
+              <p className="status-text">Your identity is verified via Entra ID.</p>
+              <div className="action-area" style={{ marginTop: "2rem" }}>
+                <button className="btn btn-lg" onClick={startPqcHandshake}>
+                  Initialize PQC Session
+                </button>
               </div>
             </div>
-          </div>
-        )}
-      </AuthenticatedTemplate>
+          )}
 
-      {status && (
-        <>
-          <hr />
-          <p>
-            <strong>Status:</strong> {status}
-          </p>
-        </>
-      )}
-    </div>
+          {/* STATE 2: PQC Challenge Active */}
+          {challenge && (
+            <div className="pqc-workflow">
+              <PQCView challenge={challenge} />
+
+              {!sessionData && (
+                <VideoRecorder
+                  onUpload={handleVideoUpload}
+                  isUploading={isUploading}
+                />
+              )}
+            </div>
+          )}
+
+          {/* STATE 3: Success */}
+          {sessionData && (
+            <div className="success-card glass-panel animate-enter" style={{ marginTop: "2rem", padding: "2rem", textAlign: "center" }}>
+              <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✅</div>
+              <h2>Session Established</h2>
+              <div className="token-display" style={{
+                background: "rgba(0,0,0,0.3)",
+                padding: "1rem",
+                borderRadius: "8px",
+                margin: "1rem 0",
+                wordBreak: "break-all",
+                color: "var(--success)"
+              }}>
+                {sessionData.sessionToken}
+              </div>
+              <button className="btn btn-secondary" onClick={() => { setChallenge(null); setSessionData(null); }}>
+                Start New Session
+              </button>
+            </div>
+          )}
+
+          {status && (
+            <div className="status-bar" style={{
+              marginTop: "2rem",
+              color: "var(--text-muted)",
+              fontSize: "0.9rem",
+              textAlign: "center"
+            }}>
+              {status}
+            </div>
+          )}
+
+        </Layout>
+      </AuthenticatedTemplate>
+    </>
   );
 }
 

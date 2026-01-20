@@ -1,0 +1,150 @@
+.video-recorder {
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.recorder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.upload-badge {
+    background: var(--secondary);
+    color: #fff;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    animation: pulse 1.5s infinite;
+}
+
+.video-frame {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    height: 320px;
+    background: #000;
+    border-radius: var(--radius-md);
+    margin: 0 auto 1.5rem;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Scanning line effect */
+.video-frame::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--success);
+    box-shadow: 0 0 15px var(--success);
+    animation: scan 3s linear infinite;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+@keyframes scan {
+    0% {
+        top: 0%;
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    90% {
+        opacity: 1;
+    }
+
+    100% {
+        top: 100%;
+        opacity: 0;
+    }
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    /* Mirror effect */
+}
+
+
+video.recording-active {
+    border: 2px solid var(--danger);
+    box-shadow: inset 0 0 20px var(--danger);
+}
+
+.camera-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.8);
+}
+
+.error-text {
+    color: var(--danger);
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.rec-indicator {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.rec-dot {
+    width: 10px;
+    height: 10px;
+    background: var(--danger);
+    border-radius: 50%;
+    animation: blink 1s infinite;
+}
+
+.btn-record {
+    background: var(--danger);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+}
+
+.btn-record:hover {
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+}
+
+.btn-stop {
+    background: var(--bg-surface);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+}
+
+.btn-stop:hover {
+    background: var(--danger);
+    color: #fff;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
